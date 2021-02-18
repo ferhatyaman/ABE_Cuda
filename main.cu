@@ -243,7 +243,6 @@ int KPABE_BenchmarkCircuitTestDCRT(usint iter, int32_t base, usint n, size_t siz
 
         ctCA = ctCin.ExtractRow(0);  // CA is A^T * s + e 0,A
 
-
         // Allocate and copy variables used by functions
         unsigned long long* publicElemB_device;
 //        createMatrix(negPubElemB_device,ell + 1, m,size,n);

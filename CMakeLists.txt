@@ -25,7 +25,7 @@ link_directories( ${OPENMP_LIBRARIES} )
 link_libraries( ${PALISADE_LIBRARIES} )
 
 
-add_executable(ABE_Cuda main.cu)
+add_executable(ABE_Cuda add-ckks.cu)
 #add_executable(deneme deneme.cu)
 
 set_target_properties(
