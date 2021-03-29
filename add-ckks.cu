@@ -5,6 +5,9 @@
 #define PROFILE
 
 #include "palisade.h"
+#include "palisadecore.h"
+#include <cuda.h>
+#include <cuda_runtime.h>
 
 using namespace lbcrypto;
 
@@ -19,6 +22,27 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 }
 
 
+/*
+void copyDCRTPolyD2H(DCRTPoly pol, unsigned long long *dev) {
+    int q_size = pol.GetParams()->GetParams().size();
+    vector<PolyImpl<NativeVector>> rns_poly = pol.GetAllElements();
+    int n = rns_poly[0].GetRingDimension();
+    unsigned long long * poly_h = (unsigned long long*)malloc(n*q_size*sizeof(unsigned long long));
+    cudaMemcpy(poly_h, dev, sizeof(unsigned long long) * n * q_size,cudaMemcpyDeviceToHost);
+
+//    for (int k = 0; k < q_size; k++, index+=n){
+//
+//        std::vector<unsigned long long> v(poly_h, poly_h + n);
+//        rns_poly[k] = v;
+//    }
+    std::vector<int64_t> v(poly_h, poly_h + (n*q_size));
+    pol = v;
+    std::cout << "Operation Completed" << std::endl;
+}
+*/
+
+
+
 void copyDCRTPolyH2D(unsigned long long *&dest, DCRTPoly src) {
 
     unsigned long long index = 0;
@@ -26,7 +50,7 @@ void copyDCRTPolyH2D(unsigned long long *&dest, DCRTPoly src) {
     vector<PolyImpl<NativeVector>> rns_poly = src.GetAllElements();
     int n = rns_poly[0].GetRingDimension();
     for (int k = 0; k < q_size; k++, index+=n)
-        CUDA_CALL(cudaMemcpy(dest+index, &rns_poly[k].GetValues()[0], sizeof(unsigned long long) * n,cudaMemcpyHostToDevice));
+        cudaMemcpy(dest+index, &rns_poly[k].GetValues()[0], sizeof(unsigned long long) * n,cudaMemcpyHostToDevice);
 }
 // Kernel
 __global__ void add1_poly(unsigned long long *des, unsigned long long *src)
@@ -35,22 +59,6 @@ __global__ void add1_poly(unsigned long long *des, unsigned long long *src)
     des[id] = src[id] + 1;
 }
 
-void copyDCRTPolyD2H(DCRTPoly poly, unsigned long long *dev) {
-    int q_size = poly.GetParams()->GetParams().size();
-    vector<PolyImpl<NativeVector>> rns_poly = poly.GetAllElements();
-    int n = rns_poly[0].GetRingDimension();
-    unsigned long long * poly_h = (unsigned long long*)malloc(n*q_size*sizeof(unsigned long long));
-    CUDA_CALL(cudaMemcpy(poly_h, dev, sizeof(unsigned long long) * n * q_size,cudaMemcpyDeviceToHost));
-
-//    for (int k = 0; k < q_size; k++, index+=n){
-//
-//        std::vector<unsigned long long> v(poly_h, poly_h + n);
-//        rns_poly[k] = v;
-//    }
-    std::vector<int64_t> v(poly_h, poly_h + (n*q_size));
-    poly = v;
-    std::cout << "Operation Completed" << std::endl;
-}
 
 int main() {
 
@@ -91,8 +99,8 @@ int main() {
     // TIC(t);
     // Create GPU DRCTPoly
     unsigned long long* sk_device, *sk_plus_1_device;
-    CUDA_CALL(cudaMalloc(&sk_device, sizeof(unsigned long long) * size * n));
-    CUDA_CALL(cudaMalloc(&sk_plus_1_device, sizeof(unsigned long long) * size * n));
+    cudaMalloc(&sk_device, sizeof(unsigned long long) * size * n);
+    cudaMalloc(&sk_plus_1_device, sizeof(unsigned long long) * size * n);
     TIC(t);
     copyDCRTPolyH2D(sk_device, keys.secretKey->GetPrivateElement());
     ioH2D = TOC_US(t);
@@ -103,7 +111,8 @@ int main() {
     add1_poly<<< blk_in_grid, thr_per_blk >>>(sk_plus_1_device, sk_device);
     DCRTPoly sk_plus_1 = keys.secretKey->GetPrivateElement();
     TIC(t);
-    copyDCRTPolyD2H(sk_plus_1,sk_plus_1_device);
+
+    //copyDCRTPolyD2H(sk_plus_1, sk_plus_1_device);
     ioD2H = TOC_US(t);
 
     std::cout << "Host to Device IO Timing: " << ioH2D << " micros" << std::endl;
