@@ -8,7 +8,8 @@
 #include "palisadecore.h"
 #include <cuda.h>
 #include <cuda_runtime.h>
-
+#include <cstdio>
+#include <stdlib.h>
 using namespace lbcrypto;
 
 #define CUDA_CALL(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -59,6 +60,42 @@ __global__ void add1_poly(unsigned long long *des, unsigned long long *src)
     des[id] = src[id] + 1;
 }
 
+
+// Kernel for poyl addition
+__global__ void add_poly(long int *d_poly_a, long int *d_poly_b, long int *c, int d_N, int d_q_modulus)
+{
+	int id = blockDim.x * blockIdx.x + threadIdx.x;
+	for (int k=0; k<d_N*2; k++)
+	{
+		printf("%lu\n", d_poly_a[k]);
+		c[k] = (d_poly_a[k] + d_poly_b[k]) % d_q_modulus;
+
+	}
+//	printf("%d\n", c[id]);
+
+}
+
+// Kernel for poly multiplication
+// assuming <<2, 16>> for testing
+__global__ void mult_poly(unsigned long long *a, unsigned long long *b, unsigned long long *c, unsigned int N, unsigned int q_modulus)
+{
+	int id = blockDim.x * blockIdx.x + threadIdx.x;
+
+	int idx = blockIdx.x;
+
+	if (idx == 0) {
+		c[id] = (a[id] * b[id]) % q_modulus;
+		c[id+N] =  (a[id+N] * b[id+N]) % q_modulus;
+
+	}
+	
+	if (idx == 1) {
+		c[id+N] = (a[id%N] * b[id]) % q_modulus;
+		c[id+2*N] = (a[id] * b[id%N]) % q_modulus;
+
+	}
+
+}
 
 int main() {
 
@@ -118,6 +155,67 @@ int main() {
     std::cout << "Host to Device IO Timing: " << ioH2D << " micros" << std::endl;
     std::cout << "Device to Host IO Timing: " << ioD2H << " micros" << std::endl;
 
+
+    // Adding two polynomials
+    int q_modulus = 78230497;
+    int N = 16;
+
+    long int poly_a[] = {25541959, 33438588, 60725242, 60529208, 42397239, 22224914, 2124676, 34198137, 71507853, 71824477, 61357045, 72845178, 17736451, 29457145, 45762325, 45950525,1714289, 37737577, 54276863, 13183248, 75898501, 40027669, 76953410, 11736972, 16473303, 13235781, 75482361, 17117934, 74884319, 16464100, 65816274, 60527152};
+    long int poly_b[] = {59482001, 67025803, 379920, 63444484, 48179845, 53488173, 73999829, 68947505, 16841640, 52220750, 56859592, 8241134, 18184706, 46715793, 4658958, 58141010, 11673823, 58609589, 19832435, 68579871, 73899106, 36726229, 55000108, 1773173, 24848758, 26299516, 4951156, 28272420, 36678120, 62696297, 43312646, 43399602};
+
+    long int *a = (long int*)malloc(sizeof(long int)* 2*N);
+    long int *b = (long int*)malloc(sizeof(long int)* 2*N);
+
+
+    for (int j=0; j<2*N; j++)
+    {
+
+	a[j] = poly_a[j];
+	b[j] = poly_b[j];
+
+    }    
+    
+    printf("%lu ", a[0]);
+    printf("%lu ", b[0]);
+
+
+
+    long int *d_poly_a, *d_poly_b, *d_poly_c;
+    //unsigned int d_q_modulus;	
+    //unsigned int d_n;
+
+    cudaMalloc((void**) &d_poly_a, sizeof(long int) * 2 * N);
+    cudaMalloc((void**) &d_poly_b, sizeof(long int) * 2 * N);
+    cudaMalloc((void**) &d_poly_c, sizeof(long int) * 2 * N);
+
+    //cudaMalloc(&d_q_modulus, sizeof(unsigned int));
+    //cudaMalloc(&d_n, sizeof(unsigned int));
+
+    cudaMemcpy(a, d_poly_a, sizeof(long int) * 2 * N, cudaMemcpyHostToDevice);
+    cudaMemcpy(b, d_poly_b, sizeof(long int) * 2 * N, cudaMemcpyHostToDevice);
+
+    //cudaMemcpy(q_modulus, d_q_modulus, sizeof(int), cudaMemcpyHostToDevice);
+    //cudaMemcpy(n, d_n, sizeof( int), cudaMemcpyHostToDevice);
+
+    add_poly<<<1, 1>>>(d_poly_a, d_poly_b, d_poly_c, N, q_modulus);    
+    cudaDeviceSynchronize();
+
+    std::cout << "Adding two polynomials is finished, time to check correctness!!" << std::endl;
+
+    long int *res_poly = (long int*)malloc(N*2*sizeof(long int));
+    cudaMemcpy(res_poly, d_poly_c, sizeof(long int)* 2*N, cudaMemcpyDeviceToHost);
+
+    std::cout << "Copying the result poly back from the device!!" << std::endl;    
+
+    for (int i=0; i< 2*N; i++){
+
+	std::cout << res_poly[i] << std::endl;
+	//std::cout << poly_a[i] << std::endl;
+	//std::cout << poly_b[i] << std::endl;
+    }
+
+    std::cout<< "Printing the result has ended" << std::endl; 
+    
     // Step 3: Encoding and encryption of inputs
 
 //    // Inputs
