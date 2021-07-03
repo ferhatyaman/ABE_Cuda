@@ -1,8 +1,8 @@
 #include <iostream>
 
+
 #include "cryptocontexthelper.h"
 #include "subgaussian/subgaussian.h"
-#include <errno.h>
 
 //#include "palisade.h"
 //#include "palisadecore.h"
@@ -31,8 +31,7 @@ void copyRow(unsigned long long * &A, unsigned long long * &B, int m, unsigned q
     unsigned int index = 0;
     for (int i = 0; i < m; i++){
         for (int j = 0; j < q_amount; j++, index+=n){
-            // DELETING THE CUDA CALL
-		cudaMemcpy(A+index, B+index, sizeof(unsigned long long) * n, cudaMemcpyDeviceToDevice);
+            CUDA_CALL(cudaMemcpy(A+index, B+index, sizeof(unsigned long long) * n, cudaMemcpyDeviceToDevice));
         }
     }
 }
@@ -41,40 +40,9 @@ void copyRow(unsigned long long * &A, unsigned long long * &B, int m, unsigned q
 int KPABE_BenchmarkCircuitTestDCRT(usint iter, int32_t base, usint n, size_t size, usint ell);
 usint EvalNANDTree(usint *x, usint ell);
 
-
-__global__ void NAND_circuit_1(int i, int m_m ,unsigned long long* &wCT, unsigned long long * origCT_device, unsigned long long *&wPublicElementB, unsigned long long * p_psi, unsigned long long * wPubElemB_dev){ //, unsigned long long * wPubElemB_dev){
-
-	int idx = blockDim.x * blockIdx.x + threadIdx.x;
-
-	if (idx < m_m*m_m){
-		//printf("\%llu \n", origCT_device[idx]);
-		
-		wCT[i*m_m + int(idx/m_m)] = origCT_device[(2*i + 1) *m_m + idx];
-		wCT[i*m_m + int(idx/m_m)] += p_psi[idx%m_m * m_m] * origCT_device[(2*i + 2)*m_m + idx%m_m]; //p_psi[idx] * origCT_device[2*i + 2];
-        wPublicElementB[i*m_m + int(idx/m_m)] = wPubElemB_dev[(2*i + 2)*m_m + idx%m_m] * p_psi[idx%m_m * m_m];
-/*
-		wPublicElementB[i*m_m + idx] = wPubElemB_dev[2*i + 2] * p_psi[idx];
-		
-		for(int k=1; k<m_m; k++){
-
-			wPublicElementB[i*m_m + idx] = wPubElemB_dev[(2*i + 2)*m_m + k] * p_psi[k*m_m + idx];
-			wCT[i*m_m + idx] += p_psi[k*m_m + idx] * origCT_device[(2*i + 2)*m_m + k];
-
-		}
-
-		wPublicElementB[i*m_m + idx] = wPubElemB_dev[idx] - wPublicElementB[i*m_m + idx];
-		wCT[i*m_m + idx] = origCT_device[idx] - wCT[i*m_m + idx];
-*/
-		
-	}
-}
-
-
 int main() {
 //    PalisadeParallelControls.Enable();
-
-    cout << "BEFORE CALLING THE KPABE BENCH" << endl;
-    //PseudoRandomNumberGenerator::InitPRNG();
+    PseudoRandomNumberGenerator::InitPRNG();
     usint  iter = 4;
 
     usint  att = 2;
@@ -82,25 +50,10 @@ int main() {
     usint n =  1 << 12;
     usint  base = 1 << 20;
 
-    KPABE_BenchmarkCircuitTestDCRT(iter, base,n, q_size,att);
+    cout << "BEFORE CALLING THE KPABE BENCH" << endl;
+    KPABE_BenchmarkCircuitTestDCRT(iter, base,n,q_size,att);
 
     return 0;
-}
-
-void copyMatrixH2D2(unsigned long long *&tmp, Matrix<DCRTPoly> src) {
-    vector<vector<DCRTPoly>> matrix = src.GetData();
-    unsigned long long index = 0;
-    for (int i = 0; i < src.GetRows(); i++){
-        for (int j = 0; j < src.GetRows(); j++){
-            int q_size = matrix[i][j].GetParams()->GetParams().size();
-            vector<PolyImpl<NativeVector>> rns_poly = matrix[i][j].GetAllElements();
-            int n = rns_poly[0].GetRingDimension();
-            for (int k = 0; k < q_size; k++, index+=n){
-                //CUDA_CALL(cudaMemcpy(dest+index, &rns_poly[k].GetValues()[0], sizeof(unsigned long long) * n,cudaMemcpyHostToDevice));
-                cudaMemcpy(&tmp+index, &rns_poly[k].GetValues()[0], sizeof(unsigned long long) * n, cudaMemcpyHostToHost);
-            }
-	}
-    }
 }
 
 void copyMatrixH2D(unsigned long long *&dest, Matrix<DCRTPoly> src) {
@@ -112,31 +65,10 @@ void copyMatrixH2D(unsigned long long *&dest, Matrix<DCRTPoly> src) {
             vector<PolyImpl<NativeVector>> rns_poly = matrix[i][j].GetAllElements();
             int n = rns_poly[0].GetRingDimension();
             for (int k = 0; k < q_size; k++, index+=n)
-                //CUDA_CALL(cudaMemcpy(dest+index, &rns_poly[k].GetValues()[0], sizeof(unsigned long long) * n,cudaMemcpyHostToDevice));
-		cudaMemcpy(dest+index, &rns_poly[k].GetValues()[0], sizeof(unsigned long long) * n,cudaMemcpyHostToDevice);
+                CUDA_CALL(cudaMemcpy(dest+index, &rns_poly[k].GetValues()[0], sizeof(unsigned long long) * n,cudaMemcpyHostToDevice));
         }
     }
 }
-
-
-void copyDCRTPolyD2H(DCRTPoly pol, unsigned long long *dev) {
-    int q_size = pol.GetParams()->GetParams().size();
-    vector<PolyImpl<NativeVector>> rns_poly = pol.GetAllElements();
-    int n = rns_poly[0].GetRingDimension();
-    unsigned long long * poly_h = (unsigned long long*)malloc(n*q_size*sizeof(unsigned long long));
-    cudaMemcpy(poly_h, dev, sizeof(unsigned long long) * n * q_size,cudaMemcpyDeviceToHost);
-    unsigned long long index = 0;
-    for (int k = 0; k < q_size; k++, index+=n){
-
-        std::vector<unsigned long long> v(poly_h, poly_h + n);
-        //rns_poly[k] = v;
-    }
-    std::vector<int64_t> v(poly_h, poly_h + (n*q_size));
-    pol = v;
-    std::cout << "Operation Completed" << std::endl;
-}
-
-
 void print_array(unsigned long long a[])
 {
     cout << "[";
@@ -161,145 +93,56 @@ void printMatrix(unsigned long long int *d_matrix, Matrix<DCRTPoly> h_matrix, un
     }
 
 }
-void EvalCT_GPU(KPABErns &kpabe, const shared_ptr<ILDCRTParams<BigInteger>> &params, Matrix<DCRTPoly> &pubElemB, /*unsigned long long* &negPubElemB_device,*/
-                usint x[], usint *x_device, unsigned long long* &origCT_device, Matrix<DCRTPoly> &origCT, usint *&evalAttributes_dev,
-                unsigned long long* &evalCT_device, usint ell, usint M, size_t size) {
+void EvalCT_GPU(KPABErns &kpabe, const shared_ptr<ILDCRTParams<BigInteger>> &params, unsigned long long* &negPubElemB_device,
+                usint x[], usint *x_device, unsigned long long* &origCT_device, usint *&evalAttributes_dev,
+                unsigned long long* &evalCT_device) {
 
-    vector<LatticeSubgaussianUtility<NativeInteger>> m_util = kpabe.get_util();
-    //usint ell = kpabe.Get_ell();
-
-    usint m = M; //params->GetModulus().GetMSB()+2 ; //kpabe.Get_m();
+    vector<LatticeSubgaussianUtility<NativeInteger>> util = kpabe.Get_util();
+    usint ell = kpabe.Get_ell();
+    usint m = kpabe.Get_m();
     usint n = params->GetRingDimension();
     usint q_size = params->GetParams().size();
 
-    cout << "m: "<< m<< endl;
-    auto zero_alloc = DCRTPoly::Allocator(params, Format::EVALUATION);
-
     // Part pertaining to A (does not change)
-    //cout << "START OF COPY_ROW FUNCTION" << endl;
-    copyRow(evalCT_device, origCT_device, m, q_size, n);
+    copyRow(evalCT_device, origCT_device,m,q_size,n);
     usint gateCnt = ell - 1;
-    
-    //cout << "AFTER COPYING ROW" << endl;
+
     // Matrix<DCRTPoly> psi(zero_alloc, m_m, m_m);
     // w stands for Wire
-    unsigned long long* wPublicElementB; 
+    unsigned long long* wPublicElementB;
 //    createMatrix(wPublicElementB, gateCnt, m, q_size, n);  // Bis associated with internal wires of the circuit
-    cudaMalloc(&wPublicElementB, sizeof(unsigned long long) * gateCnt * m * q_size * n);
-
-    //cout << "AFTER FIRST CUDA CALL" << endl;
+    CUDA_CALL(cudaMalloc(&wPublicElementB, sizeof(unsigned long long) * gateCnt * m * q_size * n));
     unsigned long long* wCT;
 //    createMatrix(wCT, gateCnt, m, q_size, n); // Ciphertexts associated with internal wires of the circuit
-    cudaMalloc(&wCT, sizeof(unsigned long long) * gateCnt * m * q_size * n);
+    CUDA_CALL(cudaMalloc(&wCT, sizeof(unsigned long long) * gateCnt * m * q_size * n));
 
     // Attribute values associated with internal wires of the circuit
     //TODO check this one
     std::vector<usint> wX(gateCnt);
 
     // Temporary variables for bit decomposition operation
-    Matrix<DCRTPoly> negB(zero_alloc, 1, m);  // Format::EVALUATION (NTT domain)
-//#/    unsigned long long* negB;
+    unsigned long long* negB;
 //    createMatrix(negB, gateCnt, m, q_size, n); // Format::EVALUATION (NTT domain)
-//#/    CUDA_CALL(cudaMalloc(&negB, sizeof(unsigned long long) * gateCnt * m * q_size * n));
+    CUDA_CALL(cudaMalloc(&negB, sizeof(unsigned long long) * gateCnt * m * q_size * n));
     // Input level of the circuit
     usint t = ell >> 1;  // the number of the gates in the first level (the
     // number of input gates)
 
-    unsigned long long* p_psi;
-
     // looping to evaluate and calculate w, wB, wC
     // and R for all first level input gates
-    for (usint i = 0; i < t; i++){
+    for (usint i = 0; i < t; i++)
         wX[i] = x[0] - x[2 * i + 1] * x[2 * i + 2];  // calculating binary wire value
 //
-#pragma omp parallel for schedule(dynamic)
-    for (usint j = 0; j < m; j++) {  // Negating Bis for bit decomposition
-        negB(0, j) = pubElemB(2 * i + 1, j).Negate();
-        negB(0, j).SwitchFormat();
-    }
-
-    auto psi = InverseRingVectorDCRT(m_util, negB, 1);
-    psi->SwitchFormat();
-
-    cudaMalloc(reinterpret_cast<void **>(&p_psi), sizeof(unsigned long long) * m * m * size * n);
-///    cudaMalloc(reinterpret_cast<void **>(&p_psi), sizeof(unsigned long long) * (ell + 1) * m * size * n);
-    copyMatrixH2D(p_psi, (*psi));
-
-    printf("THE VALUE OF n=%d\n", n);
-    for(usint i=0; i<4 ; i++){
-
-        //printf("%d\n", (*psi)(0, 0).GetElementAtIndex(i).at(i));
-        bigintnat::NativeIntegerT<unsigned long> tmp = (*psi)(0, 0).GetElementAtIndex(i).at(i);
-        //printf("%d\n", tmp.GetMSB());
-        for (usint j=1; j< n+3; j++)
-            //*//printf("%ul\n", tmp.GetGetBitAtIndex(j));
-    }
-
-    // Newly Added, copying origCT before calling the kernel
-    unsigned long long * origCT_device_n, *wPubElemB_dev;
-    cudaMalloc(&origCT_device_n, sizeof(unsigned long long) * (1) * m * size * n);
-    cudaMalloc(&wPubElemB_dev, sizeof(unsigned long long) * (1) * m * size * n);
-
-    // Copying publicElementB
-    unsigned long long* publicElemB_device;
-    cudaMalloc(reinterpret_cast<void **>(&publicElemB_device), sizeof(unsigned long long) * (ell + 1) * m * size * n);
-
-    copyMatrixH2D(publicElemB_device, pubElemB);
-
-    copyMatrixH2D(origCT_device_n, origCT.ExtractRows(1, ell+1));
-    //copyMatrixH2D(wPubElemB_dev, pubElemB);
-
-    // Calling the first NAND circuit kernel ## TESTING PHASE
-
-    if (x[2 * i + 2] != 0) {
-	    NAND_circuit_1<<<m, m>>>(i, m , wCT, origCT_device_n, wPublicElementB, p_psi, publicElemB_device);
-
-        printf("AFTER ENTERING THE KERNEL\n");
-    unsigned long long * res_wCT;
-    cudaMemcpy(res_wCT, &wCT, sizeof(unsigned long long) * n, cudaMemcpyDeviceToHost);
-
-/*
-    unsigned long long *tmp;
-    cudaMallocHost(&tmp, sizeof(unsigned long long) * gateCnt * m * q_size * n);
-    copyMatrixH2D2(tmp, origCT);	
-*/
-
-/*
-    for(int j =0; j< 10; j++){
-	
-	printf("%llu \n", res_wCT[j]);
-    }
-*/
+//#pragma omp parallel for schedule(dynamic)
+//    for (usint j = 0; j < m; j++) {  // Negating Bis for bit decomposition
+//        negB(0, j) = pubElemB(2 * i + 1, j).Negate();
+//        negB(0, j).SwitchFormat();
+//    }
 
 }
 
-printf("RESULTS FROM origCT\n");
-
-	Matrix<DCRTPoly> wCT1(zero_alloc, gateCnt, m);
-#pragma omp parallel for schedule(dynamic)
-/*
-    for (usint j = 0; j < m; j++) {
-	if (x[2 * i + 2] != 0)
-		wCT1(i, j) = origCT(2 * i + 1, j);
-        else
-                wCT1(i, j).SetValuesToZero();
-    }    
-
-
-    for(int j =0; j< 10; j++){
-
-        printf("%u \n", wCT1(i, j));
-//	printf("%u \n", origCT(0, j));
-    }
-*/
-
-  }
-
-
-}
-
-int KPABE_BenchmarkCircuitTestDCRT(usint iter, int32_t base, usint n, size_t size, usint ell) { 
-// usint n = 1 << 12; // cyclotomic order
+int KPABE_BenchmarkCircuitTestDCRT(usint iter, int32_t base, usint n, size_t size, usint ell) {
+//  usint n = 1 << 12;  // cyclotomic order
     size_t kRes = 50;   // CRT modulus size
 //  usint ell = 4;      // No of attributes
 //  size_t size = 2;    // Number of CRT moduli
@@ -341,12 +184,12 @@ int KPABE_BenchmarkCircuitTestDCRT(usint iter, int32_t base, usint n, size_t siz
     size_t digitCount = (long)ceil(
             log2(ilDCRTParams->GetParams()[0]->GetModulus().ConvertToDouble()) /
             log2(base));
-    size_t k = ilDCRTParams->GetModulus().GetMSB(); //digitCount * ilDCRTParams->GetParams().size();
+    size_t k = digitCount * ilDCRTParams->GetParams().size();
 
     std::cout << "digit count = " << digitCount << std::endl;
-    //std::cout << "k = " << k << std::endl;
+//  std::cout << "k = " << k << std::endl;
+
     size_t m = k + 2;
-    //std::cout << "m = " << m << std::endl;
 
     auto zero_alloc = DCRTPoly::Allocator(ilDCRTParams, Format::COEFFICIENT);
 
@@ -414,9 +257,7 @@ int KPABE_BenchmarkCircuitTestDCRT(usint iter, int32_t base, usint n, size_t siz
 
         // Switches to Format::EVALUATION representation
         // ptext.SwitchFormat();
-	//cout << "START OF ENCRYPTION " << endl;
-        
-	TIC(t1);
+        TIC(t1);
         sender.Encrypt(ilDCRTParams, trapdoorA.first, publicElementB, pubElemBeta,
                        &x[0], ptext, dgg, dug, bug, &ctCin,
                        &c1);  // Cin and c1 are the ciphertext
@@ -426,32 +267,29 @@ int KPABE_BenchmarkCircuitTestDCRT(usint iter, int32_t base, usint n, size_t siz
 
 
         // Allocate and copy variables used by functions
-
+        unsigned long long* publicElemB_device;
+        CUDA_CALL(cudaMalloc(reinterpret_cast<void **>(&publicElemB_device), sizeof(unsigned long long) * (ell + 1) * m * size * n));
+        copyMatrixH2D(publicElemB_device,publicElementB);
         unsigned long long* deneme = reinterpret_cast<unsigned long long*>(malloc(sizeof(unsigned long long) * (ell + 1) * m * size * n));
-        //cudaMemcpy(deneme, publicElemB_device, sizeof(unsigned long long) * (ell + 1) * m * size * n, cudaMemcpyDeviceToHost);
-
-	// THIS LINE CAUSES A PROBLEM
-        //printMatrix(publicElemB_device,publicElementB ,ell+1,m,size,n);
+        cudaMemcpy(deneme, publicElemB_device, sizeof(unsigned long long) * (ell + 1) * m * size * n, cudaMemcpyDeviceToHost);
+        printMatrix(publicElemB_device,publicElementB ,ell+1,m,size,n);
 
         usint* x_device;
-        cudaMalloc(&x_device,(ell+1) * sizeof(usint));
-        cudaMemcpy(x_device,&x[0], (ell+1) * sizeof(usint),cudaMemcpyHostToDevice);
+        CUDA_CALL(cudaMalloc(&x_device,(ell+1) * sizeof(usint)));
+        CUDA_CALL(cudaMemcpy(x_device,&x[0], (ell+1) * sizeof(usint),cudaMemcpyHostToDevice));
         unsigned long long* ctCin_device;
-        
-	// TODO: Bunu tekrar bak
-        cudaMalloc(&ctCin_device, sizeof(unsigned long long) * (ell + 1) * m * size * n);
+        // TODO: Bunu tekrar bak
+        CUDA_CALL(cudaMalloc(&ctCin_device, sizeof(unsigned long long) * (ell + 1) * m * size * n));
         unsigned long long* evalCf_device;
-        cudaMalloc(&ctCin_device, sizeof(unsigned long long) * (1) * m * size * n);
+        CUDA_CALL(cudaMalloc(&ctCin_device, sizeof(unsigned long long) * (1) * m * size * n));
 
-        copyMatrixH2D(ctCin_device, ctCin.ExtractRows(1, ell + 1));
+        copyMatrixH2D(ctCin_device,ctCin.ExtractRows(1, ell + 1));
 
 
-	
         usint* y_device;
         cudaMalloc(&y_device, sizeof(usint));
-	//printf("Before entering the EVALCT_GPU kernel \n");
-        EvalCT_GPU(sender, ilDCRTParams, publicElementB,  &x[0], x_device, ctCin_device, ctCin, y_device, evalCf_device, ell, m, size);
-	cudaDeviceSynchronize();
+        EvalCT_GPU(sender, ilDCRTParams, publicElemB_device, &x[0], x_device, ctCin_device, y_device, evalCf_device);
+
 
         TIC(t1);
         receiver.EvalCT(ilDCRTParams, publicElementB, &x[0],

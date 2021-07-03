@@ -1,0 +1,1 @@
+/usr/bin/nvcc   -Xcompiler=-fPIC -Wno-deprecated-gpu-targets -shared -dlink CMakeFiles/deneme.dir/deneme.cu.o -o CMakeFiles/deneme.dir/cmake_device_link.o   -L/usr/local/lib   -lcudadevrt -lcudart_static  -L"/usr/lib/x86_64-linux-gnu"

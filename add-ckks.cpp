@@ -62,34 +62,39 @@ __global__ void add1_poly(unsigned long long *des, unsigned long long *src)
 
 
 // Kernel for poyl addition
-__global__ void add_poly(unsigned long long *d_poly_a, unsigned long long *d_poly_b, unsigned long long *d_poly_c, int d_N, int d_q_modulus)
+__global__ void add_poly(unsigned long int *d_poly_a, unsigned long int *d_poly_b, unsigned long int *d_poly_c, int d_N, int d_q_modulus)
 {
-	int id = blockDim.x * blockIdx.x + threadIdx.x;
+	int id = threadIdx.x; //blockDim.x * blockIdx.x + threadIdx.x;
+	printf("Hello World LAAAAAAAAAAAAAAAAN!!!!!!!\n");
 
-	if (id < 2*d_N)
+//	for (int k=0; k<d_N*2; k++)
+//	{
+     if (id < (2*d_N)){
+		printf("%lu\n", d_poly_a[id]);
 		d_poly_c[id] = (d_poly_a[id] + d_poly_b[id]) % d_q_modulus;
+     }
+
+//	}
 
 }
 
 // Kernel for poly multiplication
 // assuming <<2, 16>> for testing
-__global__ void mult_poly(unsigned long long *d_a1, unsigned long long *d_b1, unsigned long long *d_c1, unsigned int N, unsigned int q_modulus)
+__global__ void mult_poly(unsigned long long *a, unsigned long long *b, unsigned long long *c, unsigned int N, unsigned int q_modulus)
 {
 	int id = blockDim.x * blockIdx.x + threadIdx.x;
 
 	int idx = blockIdx.x;
 
-//printf("%d%d\n", id, idx);
-
 	if (idx == 0) {
-		d_c1[id] = (d_a1[id] * d_b1[id]) % q_modulus;
-		d_c1[id+N] =  (d_a1[id] * d_b1[id+N]) % q_modulus;
+		c[id] = (a[id] * b[id]) % q_modulus;
+		c[id+N] =  (a[id+N] * b[id+N]) % q_modulus;
 
 	}
 	
 	if (idx == 1) {
-		d_c1[id+N] = (d_a1[id] * d_b1[id%N]) % q_modulus;
-		d_c1[id+2*N] = (d_a1[id] * d_b1[id]) % q_modulus;
+		c[id+N] = (a[id%N] * b[id]) % q_modulus;
+		c[id+2*N] = (a[id] * b[id%N]) % q_modulus;
 
 	}
 
@@ -161,26 +166,12 @@ int main() {
     int q_modulus = 78230497;
     int N = 16;
 
+    unsigned long int poly_a[] = {25541959, 33438588, 60725242, 60529208, 42397239, 22224914, 2124676, 34198137, 71507853, 71824477, 61357045, 72845178, 17736451, 29457145, 45762325, 45950525,1714289, 37737577, 54276863, 13183248, 75898501, 40027669, 76953410, 11736972, 16473303, 13235781, 75482361, 17117934, 74884319, 16464100, 65816274, 60527152};
+    unsigned long int poly_b[] = {59482001, 67025803, 379920, 63444484, 48179845, 53488173, 73999829, 68947505, 16841640, 52220750, 56859592, 8241134, 18184706, 46715793, 4658958, 58141010, 11673823, 58609589, 19832435, 68579871, 73899106, 36726229, 55000108, 1773173, 24848758, 26299516, 4951156, 28272420, 36678120, 62696297, 43312646, 43399602};
 
-    // For homomorphic addition
-    unsigned long long poly_a[] = {25541959, 33438588, 60725242, 60529208, 42397239, 22224914, 2124676, 34198137, 71507853, 71824477, 61357045, 72845178, 17736451, 29457145, 45762325, 45950525,1714289, 37737577, 54276863, 13183248, 75898501, 40027669, 76953410, 11736972, 16473303, 13235781, 75482361, 17117934, 74884319, 16464100, 65816274, 60527152};
-    unsigned long long poly_b[] = {59482001, 67025803, 379920, 63444484, 48179845, 53488173, 73999829, 68947505, 16841640, 52220750, 56859592, 8241134, 18184706, 46715793, 4658958, 58141010, 11673823, 58609589, 19832435, 68579871, 73899106, 36726229, 55000108, 1773173, 24848758, 26299516, 4951156, 28272420, 36678120, 62696297, 43312646, 43399602};
+    unsigned long int *a = (unsigned long int*)malloc(sizeof(unsigned long int)* 2*N);
+    unsigned long int *b = (unsigned long int*)malloc(sizeof(unsigned long int)* 2*N);
 
-    unsigned long long *a = (unsigned long long*)malloc(sizeof(unsigned long long)* 2*N);
-    unsigned long long *b = (unsigned long long*)malloc(sizeof(unsigned long long)* 2*N);
-
-    // For homorphic multiplication
-//    unsigned long long poly_1[] = {62758044, 62513300, 6851920, 49976364, 72063067, 39613003, 2608105, 76476832, 56778975, 56686301, 20755354, 62008028, 33398450, 72143267, 56079846, 60402110, 45952506, 64538725, 77796157, 20628801, 5927712, 76915761, 58252360, 28162783, 24858385, 25813723, 53251036, 56066385, 45605885, 12036046, 67408076, 2278729};
-//    unsigned long long poly_2[] = {65915025, 36698069, 63124213, 71707418, 59164903, 77938162, 34022392, 10553705, 61930079, 69580991, 29825022, 28907058, 56784194, 36324799, 19305303, 13650133, 18538691, 24363641, 10541245, 48431269, 9334466, 56100413, 43753808, 66129468, 58139069, 50110691, 41239555, 29700466, 32368023, 21264790, 65183956, 21913516};
-
-    unsigned long long poly_1[] = {285320, 61781530, 42337854, 62031997, 11000135, 57724744, 21909476, 18748937, 65148786, 29658987, 40623487, 580046, 42904402, 57503558, 46659785, 54077175, 55077803, 10715785, 34879584, 76767573, 13244228, 74229748, 23272319, 72838664, 68845459, 49335419, 39827296, 77091947, 36114240, 7056241, 24890759, 71053031};
-    unsigned long long poly_2[] = {37827536, 20082786, 12027891, 61580297, 59633049, 17129219, 29632715, 65344422, 30840870, 3347832, 5502272, 48944061, 50517890, 45736121, 59839017, 37271440, 1652379, 59305040, 55917671, 67804062, 41991077, 28207024, 7243353, 14233458, 33933496, 13893378, 14175084, 33744111, 22168642, 30040190, 26035226, 2735859};
-
-    unsigned long long *a1 = (unsigned long long*)malloc(sizeof(unsigned long long)* 2*N);
-    unsigned long long *b1 = (unsigned long long*)malloc(sizeof(unsigned long long)* 2*N);
-
-    
-   
 
     for (int j=0; j<2*N; j++)
     {
@@ -188,57 +179,37 @@ int main() {
 	a[j] = poly_a[j];
 	b[j] = poly_b[j];
 
-        a1[j] = poly_1[j];
-        b1[j] = poly_2[j];
     }    
     
-    printf("%llu \n", a[0]);
-    printf("%llu \n", b[0]);
-    printf("%llu \n", a1[0]);
-    printf("%llu \n", b1[0]);
+    printf("%lu \n", a[0]);
+    printf("%lu \n", b[0]);
 
-    unsigned long long *d_poly_a, *d_poly_b, *d_poly_c;
-    unsigned long long *d_a1, *d_b1, *d_c1;
 
+    unsigned long int *d_poly_a, *d_poly_b, *d_poly_c;
     //unsigned int d_q_modulus;	
     //unsigned int d_n;
 
-    // Addition
-    cudaMalloc((void**)&d_poly_a, 2*N * sizeof(unsigned long long));
-    cudaMalloc((void**)&d_poly_b, 2*N * sizeof(unsigned long long));
-    cudaMalloc((void**)&d_poly_c, 2*N * sizeof(unsigned long long));
+    cudaMalloc((void**)&d_poly_a, 2*N * sizeof(unsigned long int));
+    cudaMalloc((void**)&d_poly_b, 2*N * sizeof(unsigned long int));
+    cudaMalloc((void**)&d_poly_c, 2*N * sizeof(unsigned long int));
 
-    cudaMemcpy(d_poly_a, a, sizeof(unsigned long long) * 2 * N, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_poly_b, b, sizeof(unsigned long long) * 2 * N, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_poly_a, a, sizeof(unsigned long int) * 2 * N, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_poly_b, b, sizeof(unsigned long int) * 2 * N, cudaMemcpyHostToDevice);
 
-
-    // Multiplication
-    cudaMalloc((void **)&d_a1, 2*N * sizeof(unsigned long long));
-    cudaMalloc((void **)&d_b1, 2*N * sizeof(unsigned long long));
-    cudaMalloc((void **)&d_c1, 4*N * sizeof(unsigned long long));   
-
-    cudaMemcpy(d_a1, a1, sizeof(unsigned long long) * 2 * N, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_b1, b1, sizeof(unsigned long long) * 2 * N, cudaMemcpyHostToDevice);
-
-
-    //add_poly<<<1, 32>>>(d_poly_a, d_poly_b, d_poly_c, N, q_modulus);
-    
-    mult_poly<<<2, 16>>>(d_a1, d_b1, d_c1, N, q_modulus);    
-    cudaDeviceSynchronize();
+    add_poly<<<1, 32>>>(d_poly_a, d_poly_b, d_poly_c, N, q_modulus);    
+    //cudaDeviceSynchronize();
 
     std::cout << "Adding two polynomials is finished, time to check correctness!!" << std::endl;
 
-    unsigned long long *res_poly = (unsigned long long*)malloc(sizeof(unsigned long long*) * 2*N);
-    unsigned long long *res_mult = (unsigned long long*)malloc(sizeof(unsigned long long*) * 4*N);
+    unsigned long int *res_poly = (unsigned long int*)malloc(sizeof(unsigned long int*) * 2*N);
 
-    cudaMemcpy(res_poly, d_poly_c, 2*N * sizeof(unsigned long long), cudaMemcpyDeviceToHost);
-    cudaMemcpy(res_mult, d_c1, 4*N * sizeof(unsigned long long), cudaMemcpyDeviceToHost);
+    cudaMemcpy(res_poly, d_poly_c, 2*N * sizeof(unsigned long int), cudaMemcpyDeviceToHost);
 
     std::cout << "Copying the result poly back from the device!!" << std::endl;    
 
-    for (int i=0; i< 4*N+1; i++){
+    for (int i=0; i< 2*N; i++){
 
-	printf("%llu \n", res_mult[i]);
+	printf("%lu \n", res_poly[i]);
 	//std::cout << poly_a[i] << std::endl;
 	//std::cout << poly_b[i] << std::endl;
     }
